@@ -4,7 +4,7 @@ import helmet from 'helmet'
 import { createProxyMiddleware } from 'http-proxy-middleware'
 import { createServer } from 'node:http'
 
-const DEFAULT_TRAQ_ORIGIN = 'https://q.trap.jp/api'
+const DEFAULT_TRAQ_ORIGIN = 'https://q.trap.jp'
 const DEFAULT_API_PREFIX = '/api/v3'
 const DEFAULT_AUTH_PREFIX = '/api/auth'
 
@@ -53,9 +53,22 @@ const proxyOptions = {
   xfwd: true,
   logLevel: 'warn',
   cookieDomainRewrite: '',
-  onProxyReq: proxyReq => {
+  onProxyReq: (proxyReq, req) => {
     proxyReq.setHeader('host', url.host)
     proxyReq.removeHeader('origin')
+    try {
+      const incomingPath = req.originalUrl ?? req.url ?? ''
+      const destPath = proxyReq.path ?? ''
+      // Log original request path and actual proxied target path
+      console.log(`[proxy] ${req.method ?? 'GET'} ${incomingPath} -> ${traqOrigin}${destPath}`)
+    } catch {}
+  },
+  onProxyReqWs: (proxyReq, req) => {
+    try {
+      const incomingPath = req.originalUrl ?? req.url ?? ''
+      const destPath = proxyReq.path ?? ''
+      console.log(`[proxy][ws] ${incomingPath} -> ${traqOrigin}${destPath}`)
+    } catch {}
   },
   onProxyRes: proxyRes => {
     delete proxyRes.headers['access-control-allow-origin']
