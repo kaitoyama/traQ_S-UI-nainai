@@ -176,4 +176,5 @@ export default defineConfig(({ mode }) => {
       reporter: ['text', 'lcov']
     }
   }
+  }
 })
