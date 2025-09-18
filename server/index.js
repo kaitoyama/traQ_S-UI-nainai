@@ -55,7 +55,13 @@ const proxyOptions = {
   cookieDomainRewrite: '',
   onProxyReq: (proxyReq, req) => {
     proxyReq.setHeader('host', url.host)
-    proxyReq.removeHeader('origin')
+    if (traqOrigin) {
+      proxyReq.setHeader('origin', traqOrigin)
+      proxyReq.setHeader('referer', `${traqOrigin}${proxyReq.path ?? ''}`)
+    }
+    if (req.headers.cookie) {
+      proxyReq.setHeader('cookie', req.headers.cookie)
+    }
     try {
       const incomingPath = req.originalUrl ?? req.url ?? ''
       const destPath = proxyReq.path ?? ''
@@ -64,6 +70,13 @@ const proxyOptions = {
     } catch {}
   },
   onProxyReqWs: (proxyReq, req) => {
+    if (traqOrigin) {
+      proxyReq.setHeader('origin', traqOrigin)
+      proxyReq.setHeader('referer', `${traqOrigin}${proxyReq.path ?? ''}`)
+    }
+    if (req.headers.cookie) {
+      proxyReq.setHeader('cookie', req.headers.cookie)
+    }
     try {
       const incomingPath = req.originalUrl ?? req.url ?? ''
       const destPath = proxyReq.path ?? ''
