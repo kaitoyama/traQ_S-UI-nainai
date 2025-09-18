@@ -45,6 +45,21 @@ const isApiRequest = reqPath => {
   return false
 }
 
+const rewriteLocationPath = pathname => {
+  const ensurePathPrefix = prefix =>
+    pathname === prefix || pathname.startsWith(prefix + '/')
+
+  if (ensurePathPrefix(DEFAULT_API_PREFIX)) {
+    const suffix = pathname.slice(DEFAULT_API_PREFIX.length)
+    return apiPrefix + suffix
+  }
+  if (ensurePathPrefix(DEFAULT_AUTH_PREFIX)) {
+    const suffix = pathname.slice(DEFAULT_AUTH_PREFIX.length)
+    return authPrefix + suffix
+  }
+  return undefined
+}
+
 const proxyOptions = {
   target: traqOrigin,
   changeOrigin: true,
@@ -53,11 +68,22 @@ const proxyOptions = {
   xfwd: true,
   logLevel: 'warn',
   cookieDomainRewrite: '',
+  cookiePathRewrite: '/',
   onProxyReq: (proxyReq, req) => {
     proxyReq.setHeader('host', url.host)
-    if (traqOrigin) {
-      proxyReq.setHeader('origin', traqOrigin)
-      proxyReq.setHeader('referer', `${traqOrigin}${proxyReq.path ?? ''}`)
+
+    const originHeader = req.headers.origin ?? traqOrigin
+    if (originHeader) {
+      proxyReq.setHeader('origin', originHeader)
+    }
+
+    const refererHeader =
+      req.headers.referer ??
+      (originHeader && (req.originalUrl ?? req.url)
+        ? `${originHeader}${req.originalUrl ?? req.url}`
+        : undefined)
+    if (refererHeader) {
+      proxyReq.setHeader('referer', refererHeader)
     }
     if (req.headers.cookie) {
       proxyReq.setHeader('cookie', req.headers.cookie)
@@ -70,9 +96,18 @@ const proxyOptions = {
     } catch {}
   },
   onProxyReqWs: (proxyReq, req) => {
-    if (traqOrigin) {
-      proxyReq.setHeader('origin', traqOrigin)
-      proxyReq.setHeader('referer', `${traqOrigin}${proxyReq.path ?? ''}`)
+    const originHeader = req.headers.origin ?? traqOrigin
+    if (originHeader) {
+      proxyReq.setHeader('origin', originHeader)
+    }
+
+    const refererHeader =
+      req.headers.referer ??
+      (originHeader && (req.originalUrl ?? req.url)
+        ? `${originHeader}${req.originalUrl ?? req.url}`
+        : undefined)
+    if (refererHeader) {
+      proxyReq.setHeader('referer', refererHeader)
     }
     if (req.headers.cookie) {
       proxyReq.setHeader('cookie', req.headers.cookie)
@@ -86,6 +121,27 @@ const proxyOptions = {
   onProxyRes: proxyRes => {
     delete proxyRes.headers['access-control-allow-origin']
     delete proxyRes.headers['access-control-allow-credentials']
+
+    const location = proxyRes.headers.location
+    if (!location) return
+
+    try {
+      const resolved = new URL(location, traqOrigin)
+      const rewrittenPath = rewriteLocationPath(resolved.pathname)
+      if (!rewrittenPath) return
+
+      resolved.pathname = rewrittenPath
+
+      const originalIsRelative = location.startsWith('/') && !location.startsWith('//')
+      if (originalIsRelative || resolved.origin === url.origin) {
+        proxyRes.headers.location = `${rewrittenPath}${resolved.search}${resolved.hash}`
+        return
+      }
+
+      proxyRes.headers.location = resolved.toString()
+    } catch (error) {
+      console.warn('[proxy][location-rewrite] failed', error)
+    }
   }
 }
 
