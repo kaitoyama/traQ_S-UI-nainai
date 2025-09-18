@@ -67,7 +67,10 @@ export const WEBSOCKET_ENDPOINT = withApiBase('ws')
 
 const apis = new Apis(
   new Configuration({
-    basePath: BASE_PATH
+    basePath: BASE_PATH,
+    baseOptions: {
+      withCredentials: true
+    }
   })
 )
 
