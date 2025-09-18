@@ -5,6 +5,7 @@ import type { Message } from '@traptitech/traq'
 import { useMessagesView } from '/@/store/domain/messagesView'
 import { useMessagesStore } from '/@/store/entities/messages'
 import { useViewStateSenderStore } from '/@/store/domain/viewStateSenderStore'
+import { useMessageFilterStore } from '/@/store/domain/messageFilter'
 
 export type LoadingDirection = 'former' | 'latter' | 'around' | 'latest'
 
@@ -35,7 +36,8 @@ const useMessageFetcher = (
 ) => {
   const { renderMessageContent, resetRenderedContent } = useMessagesView()
   const { shouldReceiveLatestMessages } = useViewStateSenderStore()
-  const { fetchMessage } = useMessagesStore()
+  const { fetchMessage, messagesMap } = useMessagesStore()
+  const messageFilterStore = useMessageFilterStore()
 
   const messageIds = ref<MessageId[]>([])
   const isReachedEnd = ref(false)
@@ -66,6 +68,39 @@ const useMessageFetcher = (
     )
   }
 
+  const filterVisibleMessageIds = async (candidateIds: MessageId[]) => {
+    if (!messageFilterStore.isEnabled.value) {
+      return candidateIds
+    }
+
+    const lookupMessages: Message[] = []
+    const skippedIds = new Set<MessageId>()
+    candidateIds.forEach(id => {
+      const message = messagesMap.value.get(id)
+      if (message) {
+        lookupMessages.push(message)
+      } else {
+        skippedIds.add(id)
+      }
+    })
+
+    if (lookupMessages.length === 0) {
+      return candidateIds
+    }
+
+    const visibleMessages = await messageFilterStore.filterVisibleMessages(
+      lookupMessages
+    )
+    if (visibleMessages.length === lookupMessages.length) {
+      return candidateIds
+    }
+
+    const visibleSet = new Set(visibleMessages.map(message => message.id))
+    return candidateIds.filter(
+      id => skippedIds.has(id) || visibleSet.has(id)
+    )
+  }
+
   const reset = () => {
     messageIds.value = []
     isReachedEnd.value = false
@@ -85,7 +120,7 @@ const useMessageFetcher = (
       async () => {
         const newMessageIds = await fetchFormerMessages(isReachedEnd)
         await renderMessageFromIds(newMessageIds)
-        return newMessageIds
+        return await filterVisibleMessageIds(newMessageIds)
       },
       newMessageIds => {
         isLoading.value = false
@@ -103,7 +138,7 @@ const useMessageFetcher = (
       async () => {
         const newMessageIds = await fetchFormerMessages(isReachedEnd)
         await renderMessageFromIds(newMessageIds)
-        return newMessageIds
+        return await filterVisibleMessageIds(newMessageIds)
       },
       newMessageIds => {
         isLoading.value = false
@@ -124,7 +159,7 @@ const useMessageFetcher = (
       async () => {
         const newMessageIds = await fetchLatterMessages(isReachedLatest)
         await renderMessageFromIds(newMessageIds)
-        return newMessageIds
+        return await filterVisibleMessageIds(newMessageIds)
       },
       newMessageIds => {
         isLoading.value = false
@@ -158,7 +193,7 @@ const useMessageFetcher = (
           isReachedEnd
         )
         await renderMessageFromIds(newMessageIds)
-        return newMessageIds
+        return await filterVisibleMessageIds(newMessageIds)
       },
       newMessageIds => {
         isLoading.value = false
@@ -184,7 +219,7 @@ const useMessageFetcher = (
       async () => {
         const newMessageIds = await fetchNewMessages(isReachedLatest)
         await renderMessageFromIds(newMessageIds)
-        return newMessageIds
+        return await filterVisibleMessageIds(newMessageIds)
       },
       newMessageIds => {
         isLoading.value = false
@@ -198,14 +233,19 @@ const useMessageFetcher = (
     const beforeId = id.value
     await renderMessageContent(messageId)
 
+    const visibleIds = await filterVisibleMessageIds([messageId])
+    if (visibleIds.length === 0) return
+
+    const targetId = visibleIds[0]
+
     // すでに追加済みの場合は追加しない
     // https://github.com/traPtitech/traQ_S-UI/issues/1748
-    if (messageIds.value.includes(messageId)) return
+    if (messageIds.value.includes(targetId)) return
     // チャンネルの移動などで id が変化していたら追加しない
     // https://github.com/traPtitech/traQ_S-UI/issues/4218
     if (beforeId !== id.value) return
 
-    messageIds.value.push(messageId)
+    messageIds.value.push(targetId)
   }
 
   const init = () => {
