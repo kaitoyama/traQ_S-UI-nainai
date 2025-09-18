@@ -16,7 +16,7 @@ import { Apis, Configuration } from '@traptitech/traq'
 import type { FileId } from '/@/types/entity-ids'
 import { DEV_SERVER } from '/@/lib/define'
 import type { AxiosError } from 'axios'
-import { constructFilesPath } from '/@/router'
+import { constructFilesPath } from '/@/lib/routerPaths'
 import {
   DEFAULT_API_BASE_URL,
   DEFAULT_AUTH_BASE_URL

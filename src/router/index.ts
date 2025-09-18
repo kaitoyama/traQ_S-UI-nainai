@@ -3,6 +3,21 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { isServerRequestUrl } from '/@/lib/apis'
 import { sessionStorageRedirectKey } from '/@/lib/dom/storage'
 import { settingsRoutes } from './settings'
+import {
+  constructChannelPath,
+  constructClipFoldersPath,
+  constructFilesPath,
+  constructMessagesPath,
+  constructUserPath
+} from '/@/lib/routerPaths'
+
+export {
+  constructChannelPath,
+  constructClipFoldersPath,
+  constructFilesPath,
+  constructMessagesPath,
+  constructUserPath
+} from '/@/lib/routerPaths'
 
 export enum RouteName {
   Index = 'index',
@@ -20,14 +35,6 @@ export enum RouteName {
   Settings = 'settings',
   NotFound = 'not-found'
 }
-
-export const constructChannelPath = (path: string) =>
-  `/channels/${path}` as const
-export const constructUserPath = (name: string) => `/users/${name}` as const
-export const constructMessagesPath = (id: string) => `/messages/${id}` as const
-export const constructFilesPath = (id: string) => `/files/${id}` as const
-export const constructClipFoldersPath = (id: string) =>
-  `/clip-folders/${id}` as const
 
 export const isMessageScrollerRoute = (
   routeName: string | symbol | null | undefined
