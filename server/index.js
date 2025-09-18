@@ -2,10 +2,7 @@ import compression from 'compression'
 import express from 'express'
 import helmet from 'helmet'
 import { createProxyMiddleware } from 'http-proxy-middleware'
-import fs from 'node:fs'
 import { createServer } from 'node:http'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const DEFAULT_TRAQ_ORIGIN = 'https://q.trap.jp'
 const DEFAULT_API_PREFIX = '/api/v3'
@@ -24,19 +21,7 @@ if (url.protocol !== 'https:') {
   )
 }
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const distDir = path.resolve(__dirname, '../dist')
-const indexHtmlPath = path.join(distDir, 'index.html')
-
-if (!fs.existsSync(indexHtmlPath)) {
-  console.error(
-    `Cannot find built frontend at ${indexHtmlPath}. Run \`npm run build\` before starting the proxy server.`
-  )
-  process.exit(1)
-}
-
-const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8')
+// Server configuration only - no static file serving
 
 const app = express()
 app.disable('x-powered-by')
@@ -86,37 +71,17 @@ if (authPrefix !== apiPrefix) {
   app.use(authPrefix, authProxy)
 }
 
-const oneYearSeconds = 60 * 60 * 24 * 365
-app.use(
-  express.static(distDir, {
-    index: false,
-    maxAge: oneYearSeconds * 1000,
-    setHeaders: (res, filePath) => {
-      res.setHeader('X-Content-Type-Options', 'nosniff')
-      if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-store')
-      } else {
-        res.setHeader('Cache-Control', `public, max-age=${oneYearSeconds}, immutable`)
-      }
-    }
-  })
-)
+// Static file serving removed - API proxy only
 
 app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.get('*', (req, res, next) => {
-  if (isApiRequest(req.path)) {
-    next()
-    return
+// Catch-all route removed - API proxy only
+app.get('*', (req, res) => {
+  if (!isApiRequest(req.path)) {
+    res.status(404).json({ error: 'Not Found - API proxy only' })
   }
-  if (req.method !== 'GET') {
-    res.status(404).end()
-    return
-  }
-  res.setHeader('Cache-Control', 'no-store')
-  res.type('html').send(indexHtml)
 })
 
 const server = createServer(app)
