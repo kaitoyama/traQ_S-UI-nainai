@@ -126,6 +126,7 @@ export default defineConfig(({ mode }) => {
     stringify: true
   },
   plugins: [
+    VuePlugin(),
     VitePWA({
       strategies: 'injectManifest',
       manifest: webManifest,
@@ -137,7 +138,6 @@ export default defineConfig(({ mode }) => {
         globPatterns: ['**/*.{js,css,html}' /* default */, '**/assets/**/*.svg']
       }
     }),
-    VuePlugin(),
     svgLoader({
       defaultImport: 'component',
       svgoConfig: {
