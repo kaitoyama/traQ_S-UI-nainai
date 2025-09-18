@@ -1,5 +1,5 @@
 import { reactive, ref, watch, watchEffect } from 'vue'
-import apis from '/@/lib/apis'
+import apis, { buildAuthProviderUrl } from '/@/lib/apis'
 import useRedirectParam from './useRedirectParam'
 import useCredentialManager from './useCredentialManager'
 import type { AxiosError } from 'axios'
@@ -98,7 +98,7 @@ const useLogin = () => {
   }
   const loginExternal = (provider: string) => {
     setRedirectSessionStorage()
-    location.href = `/api/auth/${provider}`
+    location.href = buildAuthProviderUrl(provider)
   }
   return {
     loginState: state,

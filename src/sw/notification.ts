@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw'
+import { buildApiUrl, buildFilePath } from '/@/lib/apis'
 import type { NotificationClickEvent } from '/@/types/InlineNotificationReplies'
 import { createNotificationArgumentsCreator } from '/@/lib/notification/notificationArguments'
 import { getMeStore } from '/@/sw/store'
@@ -11,7 +12,7 @@ import type { ServiceWorkerNavigateMessage } from '/@/lib/notification/notificat
 declare const self: typeof globalThis
 
 const postMessage = (channelId: ChannelId, text: string) =>
-  fetch(`/api/v3/channels/${channelId}/messages`, {
+  fetch(buildApiUrl(`channels/${channelId}/messages`), {
     method: 'POST',
     credentials: 'include',
     headers: {
@@ -83,7 +84,7 @@ export const setupNotification = async () => {
       if (store?.detail) {
         const me = store.detail
         data.body = `${me.displayName}: ${event.reply}`
-        data.icon = `/api/v3/files/${me.iconFileId}`
+        data.icon = buildFilePath(me.iconFileId)
       } else {
         // eslint-disable-next-line no-console
         console.warn('[sw] no store or me.detail found')

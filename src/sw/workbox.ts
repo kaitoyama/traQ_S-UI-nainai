@@ -1,4 +1,5 @@
 import { setCacheNameDetails } from 'workbox-core'
+import { buildApiUrl } from '/@/lib/apis'
 import {
   precacheAndRoute,
   createHandlerBoundToURL,
@@ -16,6 +17,16 @@ declare const self: ServiceWorkerGlobalScope
  */
 export const setupWorkbox = () => {
   setCacheNameDetails({ prefix: 'traQ_S' })
+
+  const escapeRegExp = (value: string) =>
+    value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+
+  const buildPathname = (path: string) =>
+    new URL(path, self.location.href).pathname.replace(/\/+$/, '')
+
+  const apiBasePath = buildPathname(buildApiUrl(''))
+  const filesPathPrefix = buildPathname(buildApiUrl('files/'))
+  const uuidPattern = '[0-9a-fA-F-]{36}'
 
   /* アップデート */
   self.addEventListener('message', event => {
@@ -43,6 +54,20 @@ export const setupWorkbox = () => {
   )
 
   // index.htmlが返ってくる箇所は予め指定 (refs src/router/index.ts)
+  const navigationDenylist = [
+    new RegExp('/widget/'),
+    new RegExp('/api/'),
+    new RegExp('/.well-known/')
+  ]
+
+  if (
+    apiBasePath !== '' &&
+    apiBasePath !== '/' &&
+    !/^\/api\b/.test(apiBasePath)
+  ) {
+    navigationDenylist.push(new RegExp(`^${escapeRegExp(apiBasePath)}/`))
+  }
+
   registerRoute(
     new NavigationRoute(createHandlerBoundToURL('/index.html'), {
       allowlist: [
@@ -58,17 +83,13 @@ export const setupWorkbox = () => {
         new RegExp('/registration'),
         new RegExp('/consent')
       ],
-      denylist: [
-        new RegExp('/widget/'),
-        new RegExp('/api/'),
-        new RegExp('/.well-known/')
-      ]
+      denylist: navigationDenylist
     })
   )
 
   // ファイルAPIのキャッシュ設定
   registerRoute(
-    new RegExp('/api/v3/files/[0-9a-fA-F-]{36}$'),
+    new RegExp(`${escapeRegExp(filesPathPrefix)}/${uuidPattern}$`),
     new CacheFirst({
       cacheName: 'files-cache',
       plugins: [
@@ -83,7 +104,9 @@ export const setupWorkbox = () => {
     })
   )
   registerRoute(
-    new RegExp('/api/v3/files/[0-9a-fA-F-]{36}/thumbnail$'),
+    new RegExp(
+      `${escapeRegExp(filesPathPrefix)}/${uuidPattern}/thumbnail$`
+    ),
     new CacheFirst({
       cacheName: 'thumbnail-cache',
       plugins: [

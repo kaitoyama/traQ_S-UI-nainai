@@ -17,11 +17,53 @@ import type { FileId } from '/@/types/entity-ids'
 import { DEV_SERVER } from '/@/lib/define'
 import type { AxiosError } from 'axios'
 import { constructFilesPath } from '/@/router'
+import {
+  DEFAULT_API_BASE_URL,
+  DEFAULT_AUTH_BASE_URL
+} from '/@/lib/constants/endpoints'
+
+const isAbsoluteUrl = (value: string) =>
+  /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)
+
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '')
+const trimLeadingSlash = (value: string) => value.replace(/^\/+/, '')
+
+const ensureLeadingSlash = (value: string) =>
+  value.startsWith('/') ? value : `/${value}`
+
+const normalizeBaseUrl = (value: string, fallback: string) => {
+  const trimmed = trimTrailingSlash(value.trim())
+  if (trimmed === '') return fallback
+  if (isAbsoluteUrl(trimmed)) return trimmed
+  return ensureLeadingSlash(trimmed)
+}
+
+const joinUrl = (base: string, path: string) => {
+  const normalizedBase = trimTrailingSlash(base)
+  const normalizedPath = trimLeadingSlash(path)
+  if (!normalizedBase) return `/${normalizedPath}`
+  return `${normalizedBase}/${normalizedPath}`
+}
+
+export const API_BASE_URL = normalizeBaseUrl(
+  (import.meta.env['VITE_TRAQ_API_BASE_URL'] as string | undefined) ??
+    DEFAULT_API_BASE_URL,
+  normalizeBaseUrl(DEFAULT_API_BASE_URL, DEFAULT_API_BASE_URL)
+)
+
+export const AUTH_BASE_URL = normalizeBaseUrl(
+  (import.meta.env['VITE_TRAQ_AUTH_BASE_URL'] as string | undefined) ??
+    DEFAULT_AUTH_BASE_URL,
+  normalizeBaseUrl(DEFAULT_AUTH_BASE_URL, DEFAULT_AUTH_BASE_URL)
+)
+
+const withApiBase = (path: string) => joinUrl(API_BASE_URL, path)
+const withAuthBase = (path: string) => joinUrl(AUTH_BASE_URL, path)
 
 export type { Session as WebRTCUserStateSessions }
 
-export const BASE_PATH = '/api/v3'
-export const WEBSOCKET_ENDPOINT = '/api/v3/ws'
+export const BASE_PATH = API_BASE_URL
+export const WEBSOCKET_ENDPOINT = withApiBase('ws')
 
 const apis = new Apis(
   new Configuration({
@@ -31,23 +73,28 @@ const apis = new Apis(
 
 export default apis
 
-export const buildFilePath = (fileId: FileId, withDlParam = false) =>
-  `${BASE_PATH}/files/${fileId}${withDlParam ? '?dl=1' : ''}`
-
-export const buildUserIconPath = (userIconFileId: FileId) =>
-  `${BASE_PATH}/files/${userIconFileId}`
-
-export const buildFileThumbnailPath = (fileId: FileId) =>
-  `${BASE_PATH}/files/${fileId}/thumbnail`
-
-export const buildFileWaveformPath = (fileId: FileId) =>
-  `${buildFileThumbnailPath(fileId)}?type=waveform`
-
 export const embeddingOrigin =
   DEV_SERVER !== '' &&
   (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
     ? DEV_SERVER
     : `${location.protocol}//${location.host}`
+
+const ensureAbsoluteFromAppOrigin = (path: string) =>
+  isAbsoluteUrl(path) ? path : `${embeddingOrigin}${path}`
+
+export const buildFilePath = (fileId: FileId, withDlParam = false) => {
+  const base = withApiBase(`files/${fileId}`)
+  return withDlParam ? `${base}?dl=1` : base
+}
+
+export const buildUserIconPath = (userIconFileId: FileId) =>
+  withApiBase(`files/${userIconFileId}`)
+
+export const buildFileThumbnailPath = (fileId: FileId) =>
+  withApiBase(`files/${fileId}/thumbnail`)
+
+export const buildFileWaveformPath = (fileId: FileId) =>
+  `${buildFileThumbnailPath(fileId)}?type=waveform`
 
 export const buildFilePathForPost = (fileId: FileId) =>
   `${embeddingOrigin}${constructFilesPath(fileId)}`
@@ -57,9 +104,14 @@ export const buildFilePathForPost = (fileId: FileId) =>
  * 使える場合は`buildUserIconPath`を優先して使う
  */
 export const buildUserIconPathPublic = (username: string) =>
-  `${embeddingOrigin}${BASE_PATH}/public/icon/${username}`
+  ensureAbsoluteFromAppOrigin(withApiBase(`public/icon/${username}`))
 
-export const OAuthDecidePath = `${BASE_PATH}/oauth2/authorize/decide`
+export const OAuthDecidePath = withApiBase('oauth2/authorize/decide')
+
+export const buildAuthProviderUrl = (provider: string) =>
+  withAuthBase(provider)
+
+export const buildApiUrl = (path: string) => withApiBase(path)
 
 /**
  * サーバーでの処理が必要なURLかどうかを判定する
@@ -69,13 +121,17 @@ export const OAuthDecidePath = `${BASE_PATH}/oauth2/authorize/decide`
  *
  * @param url 判定するURL (相対URLだった場合はlocation.hrefをbaseとして絶対URLに変換して判定する)
  */
+const oauthAuthorizeUrl = withApiBase('oauth2/authorize')
+
 export const isServerRequestUrl = (url: string) => {
   try {
-    const u = new URL(url, location.href)
-    if (u.origin === location.origin) {
-      if (u.pathname === '/api/v3/oauth2/authorize') {
-        return true
-      }
+    const targetUrl = new URL(url, location.href)
+    const authorizeUrl = new URL(oauthAuthorizeUrl, location.href)
+    if (
+      targetUrl.origin === authorizeUrl.origin &&
+      targetUrl.pathname === authorizeUrl.pathname
+    ) {
+      return true
     }
   } catch {}
   return false

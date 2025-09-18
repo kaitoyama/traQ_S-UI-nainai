@@ -21,6 +21,13 @@ If you want to deploy your own instance of traQ, then follow the instructions in
 
 If you want to contribute to traQ (Frontend), then follow the instructions in [development.md](./docs/development.md).
 
+### Environment Variables
+
+Both development (`npm run dev`) and production builds read the following values when available:
+
+- `VITE_TRAQ_API_BASE_URL` — API base URL or path. Defaults to `/api/v3`. Accepts relative paths (proxied through the Vite dev server) or absolute URLs for external APIs.
+- `VITE_TRAQ_AUTH_BASE_URL` — OAuth entrypoint base URL or path. Defaults to `/api/auth`. Used for the external authentication redirect target.
+
 ## License
 
 Code licensed under [the MIT License](https://github.com/traPtitech/traQ_S-UI/blob/master/LICENSE).

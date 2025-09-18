@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 import * as path from 'path'
 import packageJson from './package.json'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -10,6 +10,10 @@ import svgLoader from 'vite-svg-loader'
 import { Agent as HttpsAgent } from 'https'
 import webManifest from './webmanifest'
 import { DEV_SERVER_PROXY_HOST } from './dev.config'
+import {
+  DEFAULT_API_BASE_URL,
+  DEFAULT_AUTH_BASE_URL
+} from './src/lib/constants/endpoints'
 import browserslist from 'browserslist'
 import { resolveToEsbuildTarget } from 'esbuild-plugin-browserslist'
 import GithubActionsReporter from 'vitest-github-actions-reporter'
@@ -17,7 +21,48 @@ import autoprefixer from 'autoprefixer'
 
 const keepAliveAgent = new HttpsAgent({ keepAlive: true })
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+
+  const isAbsoluteUrl = (value: string) =>
+    /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)
+
+  const normalizeProxyPath = (
+    value: string | undefined,
+    fallback: string
+  ): string | undefined => {
+    const base = (value ?? fallback).trim()
+    const trimmed = base.replace(/\/+$/, '')
+    if (trimmed === '') return fallback
+    if (isAbsoluteUrl(trimmed)) return undefined
+    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  }
+
+  const apiProxyPath = normalizeProxyPath(
+    env.VITE_TRAQ_API_BASE_URL,
+    DEFAULT_API_BASE_URL
+  )
+  const authProxyPath = normalizeProxyPath(
+    env.VITE_TRAQ_AUTH_BASE_URL,
+    DEFAULT_AUTH_BASE_URL
+  )
+
+  const createProxyOptions = (): ProxyOptions => ({
+    target: DEV_SERVER_PROXY_HOST,
+    changeOrigin: true,
+    ws: true,
+    agent: keepAliveAgent
+  })
+
+  const proxy: Record<string, ProxyOptions> = {}
+  if (apiProxyPath) {
+    proxy[apiProxyPath] = createProxyOptions()
+  }
+  if (authProxyPath && authProxyPath !== apiProxyPath) {
+    proxy[authProxyPath] = createProxyOptions()
+  }
+
+  return {
   resolve: {
     alias: {
       '/@': path.resolve(__dirname, 'src')
@@ -25,20 +70,7 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 8080,
-    proxy: {
-      '/api/v3': {
-        target: DEV_SERVER_PROXY_HOST,
-        changeOrigin: true,
-        ws: true,
-        agent: keepAliveAgent
-      },
-      '/api/auth': {
-        target: DEV_SERVER_PROXY_HOST,
-        changeOrigin: true,
-        ws: true,
-        agent: keepAliveAgent
-      }
-    }
+    proxy
   },
   build: {
     target: resolveToEsbuildTarget(browserslist(), {
@@ -144,4 +176,4 @@ export default defineConfig(({ mode }) => ({
       reporter: ['text', 'lcov']
     }
   }
-}))
+})
