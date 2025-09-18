@@ -79,6 +79,20 @@ const proxyOptions = {
 const apiProxy = createProxyMiddleware(proxyOptions)
 const authProxy = createProxyMiddleware(proxyOptions)
 
+// Log incoming HTTP requests before proxying
+app.use(apiPrefix, (req, _res, next) => {
+  const originalPath = req.originalUrl ?? req.url ?? ''
+  console.log(`[proxy][incoming] ${req.method ?? 'GET'} ${originalPath} -> ${traqOrigin}${originalPath}`)
+  next()
+})
+if (authPrefix !== apiPrefix) {
+  app.use(authPrefix, (req, _res, next) => {
+    const originalPath = req.originalUrl ?? req.url ?? ''
+    console.log(`[proxy][incoming] ${req.method ?? 'GET'} ${originalPath} -> ${traqOrigin}${originalPath}`)
+    next()
+  })
+}
+
 app.use(apiPrefix, apiProxy)
 if (authPrefix !== apiPrefix) {
   app.use(authPrefix, authProxy)
@@ -102,10 +116,12 @@ const server = createServer(app)
 server.on('upgrade', (req, socket, head) => {
   const urlPath = req.url ?? ''
   if (urlPath.startsWith(apiPrefix)) {
+    console.log(`[proxy][ws-incoming] ${urlPath} -> ${traqOrigin}${urlPath}`)
     apiProxy.upgrade(req, socket, head)
     return
   }
   if (authPrefix !== apiPrefix && urlPath.startsWith(authPrefix)) {
+    console.log(`[proxy][ws-incoming] ${urlPath} -> ${traqOrigin}${urlPath}`)
     authProxy.upgrade(req, socket, head)
     return
   }
