@@ -4,7 +4,7 @@ import helmet from 'helmet'
 import { createProxyMiddleware } from 'http-proxy-middleware'
 import { createServer } from 'node:http'
 
-const DEFAULT_TRAQ_ORIGIN = 'https://q.trap.jp'
+const DEFAULT_TRAQ_ORIGIN = 'https://q.trap.jp/api'
 const DEFAULT_API_PREFIX = '/api/v3'
 const DEFAULT_AUTH_PREFIX = '/api/auth'
 
